@@ -1,58 +1,58 @@
 import express from "express";
-import fs from "fs";
+import cors from "cors";
+import fs from "fs-extra";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.use(express.json());
-
 const DB_FILE = "db.json";
 
-// 🧠 Helper: read/write JSON file
-function readDB() {
-  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-}
-function writeDB(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+app.use(cors());
+app.use(express.json());
+
+// Helper to read/write db.json
+async function readDB() {
+  const data = await fs.readJson(DB_FILE);
+  return data.tasks || [];
 }
 
-// ✅ GET all tasks
-app.get("/tasks", (req, res) => {
-  const data = readDB();
-  res.json(data);
+async function writeDB(tasks) {
+  await fs.writeJson(DB_FILE, { tasks }, { spaces: 2 });
+}
+
+// GET all tasks
+app.get("/tasks", async (req, res) => {
+  const tasks = await readDB();
+  res.json(tasks);
 });
 
-// ✅ POST new task
-app.post("/tasks", (req, res) => {
-  const data = readDB();
-  const newTask = { id: Date.now(), ...req.body };
-  data.push(newTask);
-  writeDB(data);
+// POST new task
+app.post("/tasks", async (req, res) => {
+  const tasks = await readDB();
+  const newTask = { id: Math.random().toString(36).slice(2, 6), ...req.body };
+  tasks.push(newTask);
+  await writeDB(tasks);
   res.status(201).json(newTask);
 });
 
-// ✅ PATCH (update) a task
-app.patch("/tasks/:id", (req, res) => {
-  const data = readDB();
-  const id = parseInt(req.params.id);
-  const index = data.findIndex((t) => t.id === id);
+// PATCH update task
+app.patch("/tasks/:id", async (req, res) => {
+  const tasks = await readDB();
+  const index = tasks.findIndex((t) => t.id === req.params.id);
   if (index === -1) return res.status(404).json({ message: "Task not found" });
-  data[index] = { ...data[index], ...req.body };
-  writeDB(data);
-  res.json(data[index]);
+  tasks[index] = { ...tasks[index], ...req.body };
+  await writeDB(tasks);
+  res.json(tasks[index]);
 });
 
-// ✅ DELETE a task
-app.delete("/tasks/:id", (req, res) => {
-  const data = readDB();
-  const id = parseInt(req.params.id);
-  const filtered = data.filter((t) => t.id !== id);
-  writeDB(filtered);
-  res.json({ message: "Task deleted" });
+// DELETE task
+app.delete("/tasks/:id", async (req, res) => {
+  let tasks = await readDB();
+  tasks = tasks.filter((t) => t.id !== req.params.id);
+  await writeDB(tasks);
+  res.json({ message: "Deleted" });
 });
 
-// ✅ Root route
-app.get("/", (req, res) => {
-  res.send("Backend running successfully 🚀");
-});
+// Root route
+app.get("/", (req, res) => res.send("✅ Task Backend Running Successfully"));
 
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
